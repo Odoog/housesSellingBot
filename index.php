@@ -28,10 +28,12 @@
 		"city_define" => ["Все дома", "Дома по районам", "Дома по планировкам", "Назад"],
 		"showAllHouses" => ["Выбрать этот дом"],
 		"showApartaments" => ["Выбрать эту квартиру"],
-		"showApartament" => ["Оставить заявку на звонок", "Назад"]
+		"showApartament" => ["Оставить заявку на звонок", "Назад"],
+		"layout_undefine" => ["Студия", "1 Комнатная", "2 Комнатная", "3 Комнатная", "4 Комнатная", "5 Комнатная"]
 	];
 
-	$cityPictures = [
+	//Нахождение низлежайшего блока вызывает сомнения, части кода связаны с построением статистики квартир
+	/* $cityPictures = [
 		"Ижевск" => "AgADAgAD06gxG1Ya4UhC-qzdZNH3tVcEMw4ABNhVtgABmRzEp7a9BAABAg",
 		"Пермь" => "AgADAgAD1agxG1Ya4Uibv1Bc7YZPNl_tAw4ABCpTD4TVVJs_VvcDAAEC",
 		"Смоленск" => "AgADAgAD1qgxG1Ya4UhTfbS1bBw1Ns0anA4ABGE6r2v-fxvd-RcCAAEC"
@@ -43,7 +45,7 @@
 		2 => "2 Комнатная",
 		3 => "3 Комнатная",
 		4 => "4 Комнатная"
-	];
+	]; */
 
 	class Texts{
 		public static function getTexts(){
@@ -75,7 +77,8 @@
 		return $updateAnswerArray;
 	}
 
-	function textReplace($oldText, $apartament){
+	//Нахождение низлежайшего блока вызывает сомнения, части кода связаны с построением информации о квартире
+	/* function textReplace($oldText, $apartament){
 		$replaceStruct = [
 			'Этаж' => $apartament['floor'],
 			'Колличество' => $apartament['quantity']
@@ -86,7 +89,7 @@
 		}
 		print("^^^^^^^^^^^ " . $oldText);
 		return $oldText;
-	}
+	} */
 
 	function mysqlQuest($quest, $type = "Single"){
 		try{
@@ -110,6 +113,12 @@
 		public static function del($messageId){
 			global $chatId, $telegramApi;
 			$telegramApi->deleteMessage($chatId, $messageId);
+		}
+
+		public static function deleteLastMessage(){
+			global $user;
+			Action::del($user["lastMessageId"]);
+			User::updateLastMessageId(0); //Выключаем последнее сообщение
 		}
 
 		public static function pic($picId, $message = NULL, $type = NULL, $buttons = NULL, $callbacks = NULL){
@@ -166,6 +175,10 @@
 
 		public static function houses($city, $area = "All", $layout = -1){
 			global $chatId, $telegramApi, $buttons;
+			if(!$area){
+				// Пользователь может искать в любой area -> Вероятный переход с квартир
+				$area = "All"; 
+			}
 			$trueInWhileSituation = false;
 			$sendMessageIds = [];
 			if($layout >= 0){
@@ -199,11 +212,17 @@
 			if(!$trueInWhileSituation){
 				print("Домов с такими параметрами не найдено, Ошибка");
 			}
-			User::updateHouseArray($sendMessageIds);
+			User::updateObjectArray($sendMessageIds);
 		}
 
 		public static function apartaments($house){
 			global $chatId, $telegramApi, $buttons, $user;
+			$sendMessageIds = [];
+
+			$houseObject = mysqlQuest("SELECT * FROM `houses` WHERE `Id` = $house");
+			$sendId = Action::pic($houseObject['photo'], $houseObject['adress'], "inline", ['Назад']); //Непосредственно добавляем фото дома с кнопкой назад
+			$sendMessageIds[] = $sendId;
+
 			if($user["layout"] >= 0){
 				$layout = $user["layout"];
 				$apartamentsArr = mysqlQuest("SELECT * FROM `apartaments` WHERE `house` = $house AND `layout` = $layout", "Group");
@@ -214,8 +233,10 @@
 				$apartPic = $apartament["photo"];
 				if($apartament["layout"] == 0) $text = "Студия";
 				else $text = $apartament["layout"] . "-тная квартира";
-				Action::pic($apartPic, $text, "inline", $buttons["showApartaments"], [$apartament["ind"]]);
+				$sendId = Action::pic($apartPic, $text, "inline", $buttons["showApartaments"], [$apartament["ind"]]);
+				$sendMessageIds[] = $sendId;
 			}
+			User::updateObjectArray($sendMessageIds);	
 		}
 
 		public static function apartament($apartamentId){
@@ -227,10 +248,10 @@
 			Action::text(textReplace($texts['showApartament'], $apartamentShow), "inline", $buttons['showApartament']);
 		}
 
-		public static function deleteAllHouses(){
+		public static function deleteAllObjects(){
 			global $chatId, $user;
-			$houseArray = json_decode($user['houseArray']);
-			foreach ($houseArray as $key => $value) {
+			$houseArray = json_decode($user['objectArray']);
+			foreach (array_reverse($houseArray) as $key => $value) {
 				Action::del($value);
 			}
 		}
@@ -238,8 +259,8 @@
 
 
 	class System{
-
-		public static function makeLayoutButtons(){
+		//Нахождение низлежайшего блока вызывает сомнения, части кода связаны с построением информации о колличестве квартир в стеке
+		/* public static function makeLayoutButtons(){
 			global $layouts, $user;
 			$buttons = $layouts;
 			$city = $user['city'];
@@ -258,6 +279,7 @@
 			//print_r($answer);
 			return $answer;
 		}
+		*/
 	}
 
 	class User{
@@ -267,11 +289,11 @@
 			mysqlQuest("INSERT INTO `users`(`id`, `stage`) VALUES ('$userId', 'старт')");
 		}
 
-		public static function updateHouseArray($newArray){
+		public static function updateObjectArray($newArray){
 			global $userId, $user;
 			$arrayInJSON = json_encode($newArray);
-			mysqlQuest("UPDATE `users` SET `houseArray`= '$arrayInJSON' WHERE `id` = $userId");
-			$user['houseArray'] = $arrayInJSON;
+			mysqlQuest("UPDATE `users` SET `objectArray`= '$arrayInJSON' WHERE `id` = $userId");
+			$user['objectArray'] = $arrayInJSON;
 		}
 
 		public static function updateLayout($newLayout){
@@ -416,13 +438,14 @@
 							User::updateStage('city_undefine');
 							break;
 						case 'Все дома':
+							Action::deleteLastMessage();
 							User::updateStage("showAllHouses");
 							User::updateLayout(-1);
 							Action::houses($user["city"]);
 							break;
 						case 'Дома по планировкам':
 							User::updateStage("layout_undefine");
-							Action::text($texts['layout_undefine'], "inline", System::makeLayoutButtons(), [0, 1, 2, 3, 4]);
+							Action::text($texts['layout_undefine'], "inline", $buttons['layout_undefine'], [0, 1, 2, 3, 4]);
 							break;
 						case 'Дома по районам':
 							User::updateStage("area_undefine");
@@ -437,6 +460,7 @@
 						User::updateStage("city_define");
 						Action::text("Вы выбрали город " . $user["city"], "inline", $buttons['city_define']);
 					} else {
+						Action::deleteLastMessage();
 						User::updateStage("showAllHouses");
 						User::updateLayout($messageText);
 						Action::houses($user["city"], "All", $messageText);
@@ -446,21 +470,32 @@
 				case 'showAllHouses':
 					if($messageText == 'Назад'){
 						User::updateStage("city_define");
+						Action::deleteAllObjects();
 						Action::text("Вы выбрали город " . $user["city"], "inline", $buttons['city_define']);
 					} else {
-						Action::deleteAllHouses();
+						Action::deleteAllObjects();
 						Action::apartaments($messageText);
 						User::updateStage('showAllApartaments');
 					}
 					break;
 
+				case 'showAllApartaments':
+					if($messageText == 'Назад'){
+						Action::deleteAllObjects();
+						User::updateStage("showAllHouses");
+						Action::houses($user["city"], $user["area"], $user["layout"]);
+					} else {
+						
 
+					}
+					break;
 
 				case "area_undefine":
 					if($messageText == "Назад"){
 						User::updateStage("city_define");
 						Action::text("Вы выбрали город " . $user["city"], "inline", $buttons['city_define']);
 					} else {
+						Action::deleteLastMessage();
 						User::updateStage("showAllHouses");
 						Action::houses($user["city"], $messageText);
 					}
