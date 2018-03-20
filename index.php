@@ -27,7 +27,8 @@
 		"позвонитемне_define" => ["Изменить номер", "Назад"],
 		"city_define" => ["Все дома", "Дома по районам", "Дома по планировкам", "Назад"],
 		"showAllHouses" => ["Выбрать этот дом"],
-		"showApartaments" => ["Выбрать эту квартиру"]
+		"showApartaments" => ["Выбрать эту квартиру"],
+		"showApartament" => ["Оставить заявку на звонок", "Назад"]
 	];
 
 	$cityPictures = [
@@ -74,6 +75,19 @@
 		return $updateAnswerArray;
 	}
 
+	function textReplace($oldText, $apartament){
+		$replaceStruct = [
+			'Этаж' => $apartament['floor'],
+			'Колличество' => $apartament['quantity']
+		];
+
+		foreach ($replaceStruct as $key => $value) {
+			$oldText = str_replace('[' . $key . ']', $value, $oldText);
+		}
+		print("^^^^^^^^^^^ " . $oldText);
+		return $oldText;
+	}
+
 	function mysqlQuest($quest, $type = "Single"){
 		try{
 			print("MYSQL : " . $quest . "\n");
@@ -100,14 +114,15 @@
 
 		public static function pic($picId, $message = NULL, $type = NULL, $buttons = NULL, $callbacks = NULL){
 			global $chatId, $telegramApi;
+			User::updateLastMessageId(0);
 			print("! " . $buttons . " " . $callbacks . "\n");
 			if($buttons){
-				$telegramApi->sendPhoto($chatId, $picId, $message, $type, makeAnswerArray($type, $buttons, $callbacks));
+				$sendMessageObject = $telegramApi->sendPhoto($chatId, $picId, $message, $type, makeAnswerArray($type, $buttons, $callbacks));
 			} else {
-				$telegramApi->sendPhoto($chatId, $picId, $message);
+				$sendMessageObject = $telegramApi->sendPhoto($chatId, $picId, $message);
 			}
+			return $sendMessageObject->result->message_id;
 		}
-//
 		public static function text($message, $type, $buttons = NULL, $callbacks = NULL){
 			global $chatId, $telegramApi, $user;
 			if($user["lastMessageId"] != 0){
@@ -132,10 +147,12 @@
 					User::updateLastMessageId($sendMessageObject->result->message_id);
 				}
 			}
+			return $sendMessageObject->result->message_id;
 		}
 
 		public static function point($x, $y, $type = NULL, $buttons = NULL, $callbacks = NULL){
 			global $chatId, $telegramApi;
+			User::updateLastMessageId(0);
 			if($buttons){
 				$telegramApi->sendMapPoint($chatId, $x, $y, $type, makeAnswerArray($type, $buttons, $callbacks));
 			} else {
@@ -147,31 +164,52 @@
 			$telegramApi->reactQuery($queryId);	
 		}
 
-		public static function houses($city, $area = "All"){
+		public static function houses($city, $area = "All", $layout = -1){
 			global $chatId, $telegramApi, $buttons;
-			if($area == "All"){
-				$houses = mysqlQuest("SELECT * FROM `houses` WHERE `city` = '$city'", "Group");
-			} else {
-				$houses = mysqlQuest("SELECT * FROM `houses` WHERE `city` = '$city' AND `area` = '$area'", "Group");
-			}
-			
 			$trueInWhileSituation = false;
-
-			while($house = mysqli_fetch_assoc($houses)){
-				$trueInWhileSituation = true;
-				$housePic = $house["photo"];
-				$text = $house["adress"];
-				Action::pic($housePic, $text, "inline", $buttons["showAllHouses"], [$house["Id"]]);
+			$sendMessageIds = [];
+			if($layout >= 0){
+				$houses = mysqlQuest("SELECT * FROM `houses` WHERE `city` = '$city'", "Group");
+				while($house = mysqli_fetch_assoc($houses)){
+					$houseId = $house['Id'];
+					$apartaments = mysqlQuest("SELECT * FROM `apartaments` WHERE `layout` = $layout AND `house` = $houseId", "Group");
+					if($apartaments){
+						$trueInWhileSituation = true;
+						$housePic = $house["photo"];
+						$text = $house["adress"];
+						$sendId = Action::pic($housePic, $text, "inline", $buttons["showAllHouses"], ["h" . $house["Id"]]);
+						$sendMessageIds[] = $sendId;
+					}
+				}
+			} else {
+				if($area == "All"){
+					$houses = mysqlQuest("SELECT * FROM `houses` WHERE `city` = '$city'", "Group");
+				} else {
+					$houses = mysqlQuest("SELECT * FROM `houses` WHERE `city` = '$city' AND `area` = '$area'", "Group");
+				}
+				while($house = mysqli_fetch_assoc($houses)){
+					$trueInWhileSituation = true;
+					$housePic = $house["photo"];
+					$text = $house["adress"];
+					$sendId = Action::pic($housePic, $text, "inline", $buttons["showAllHouses"], [$house["Id"]]);
+					$sendMessageIds[] = $sendId;
+				}
 			}
 
 			if(!$trueInWhileSituation){
 				print("Домов с такими параметрами не найдено, Ошибка");
 			}
+			User::updateHouseArray($sendMessageIds);
 		}
 
 		public static function apartaments($house){
-			global $chatId, $telegramApi, $buttons;
-			$apartamentsArr = mysqlQuest("SELECT * FROM `apartaments` WHERE `house` = $house", "Group");
+			global $chatId, $telegramApi, $buttons, $user;
+			if($user["layout"] >= 0){
+				$layout = $user["layout"];
+				$apartamentsArr = mysqlQuest("SELECT * FROM `apartaments` WHERE `house` = $house AND `layout` = $layout", "Group");
+			} else {
+				$apartamentsArr = mysqlQuest("SELECT * FROM `apartaments` WHERE `house` = $house", "Group");
+			}
 			while($apartament = mysqli_fetch_assoc($apartamentsArr)){
 				$apartPic = $apartament["photo"];
 				if($apartament["layout"] == 0) $text = "Студия";
@@ -181,9 +219,20 @@
 		}
 
 		public static function apartament($apartamentId){
-			global $chatId, $telegramApi, $buttons;
+			global $chatId, $telegramApi, $buttons, $texts;
 			$apartamentShow = mysqlQuest("SELECT * FROM `apartaments` WHERE `ind` = $apartamentId");
+			$houseId = $apartamentShow["house"];
+			$houseShow = mysqlQuest("SELECT * FROM `houses` WHERE `Id` = $houseId");
+			Action::point($houseShow["latitude"], $houseShow["longitude"]);
+			Action::text(textReplace($texts['showApartament'], $apartamentShow), "inline", $buttons['showApartament']);
+		}
 
+		public static function deleteAllHouses(){
+			global $chatId, $user;
+			$houseArray = json_decode($user['houseArray']);
+			foreach ($houseArray as $key => $value) {
+				Action::del($value);
+			}
 		}
 	}
 
@@ -195,7 +244,7 @@
 			$buttons = $layouts;
 			$city = $user['city'];
 			foreach ($buttons as $key => $value) {
-				$freeApartaments = mysqlQuest("SELECT SUM(`quantity`) AS 'summ' FROM `apartaments` WHERE `city` = '$city' && `layout` = $key", 'Single');
+				$freeApartaments = mysqlQuest("SELECT SUM(`quantity`) AS 'summ' FROM `apartaments` WHERE `city` = '$city' AND `layout` = $key", 'Single');
 				$freeApartaments = $freeApartaments['summ'];
 				if(!$freeApartaments) $freeApartaments = 0;
 				$strPlus = ' (Осталось ' . $freeApartaments . ' квартир)';
@@ -205,6 +254,7 @@
 			foreach ($buttons as $key => $value) {
 				$answer[] = $value;
 			}
+			$answer[] = "Назад";
 			//print_r($answer);
 			return $answer;
 		}
@@ -215,6 +265,19 @@
 		public static function newUser(){
 			global $userId;
 			mysqlQuest("INSERT INTO `users`(`id`, `stage`) VALUES ('$userId', 'старт')");
+		}
+
+		public static function updateHouseArray($newArray){
+			global $userId, $user;
+			$arrayInJSON = json_encode($newArray);
+			mysqlQuest("UPDATE `users` SET `houseArray`= '$arrayInJSON' WHERE `id` = $userId");
+			$user['houseArray'] = $arrayInJSON;
+		}
+
+		public static function updateLayout($newLayout){
+			global $userId, $user;
+			mysqlQuest("UPDATE `users` SET `layout`= $newLayout WHERE `id` = $userId");
+			$user["layout"] = $newLayout;
 		}
 		
 		public static function updatePhoneNumber($newPhoneNumber){
@@ -253,7 +316,7 @@
 
 		public static function updateLastMessageId($newMessageId){
 			global $userId, $user;
-			mysqlQuest("UPDATE `users` SET `lastMessageId` = '$newMessageId' WHERE `id` = $userId");
+			mysqlQuest("UPDATE `users` SET `lastMessageId` = $newMessageId WHERE `id` = $userId");
 			$user["lastMessageId"] = $newMessageId;
 		}
 	}
@@ -263,8 +326,6 @@
 		$updates = $telegramApi->getUpdates();
 
 		foreach($updates as $update){
-
-			sleep(1);
 
 			//
 			// $dest = imagecreatefromjpeg('1.jpg');
@@ -356,32 +417,53 @@
 							break;
 						case 'Все дома':
 							User::updateStage("showAllHouses");
+							User::updateLayout(-1);
 							Action::houses($user["city"]);
 							break;
 						case 'Дома по планировкам':
 							User::updateStage("layout_undefine");
-							Action::text($texts['layout_undefine'], "inline", System::makeLayoutButtons());
+							Action::text($texts['layout_undefine'], "inline", System::makeLayoutButtons(), [0, 1, 2, 3, 4]);
 							break;
 						case 'Дома по районам':
 							User::updateStage("area_undefine");
-							Action::text($texts['area_undefine'], "inline", array_merge($areas[$user["city"]]), (array)"Назад");
+							User::updateLayout(-1);
+							Action::text($texts['area_undefine'], "inline", array_merge($areas[$user["city"]], ["Назад"]));
 							break;
 					}
 					break;
 
-				case 'showAllHouses':
-					User::updateStage("showApartaments");
-					Action::apartaments($messageText);
+				case 'layout_undefine':
+					if($messageText == "Назад"){
+						User::updateStage("city_define");
+						Action::text("Вы выбрали город " . $user["city"], "inline", $buttons['city_define']);
+					} else {
+						User::updateStage("showAllHouses");
+						User::updateLayout($messageText);
+						Action::houses($user["city"], "All", $messageText);
+					}
 					break;
 
-				case 'showApartaments':
-					User::updateStage("showApartement");
-					Action::apartament($messageText);
+				case 'showAllHouses':
+					if($messageText == 'Назад'){
+						User::updateStage("city_define");
+						Action::text("Вы выбрали город " . $user["city"], "inline", $buttons['city_define']);
+					} else {
+						Action::deleteAllHouses();
+						Action::apartaments($messageText);
+						User::updateStage('showAllApartaments');
+					}
 					break;
+
+
 
 				case "area_undefine":
-					User::updateStage("showAllHouses");
-					Action::houses($user["city"], $messageText);
+					if($messageText == "Назад"){
+						User::updateStage("city_define");
+						Action::text("Вы выбрали город " . $user["city"], "inline", $buttons['city_define']);
+					} else {
+						User::updateStage("showAllHouses");
+						Action::houses($user["city"], $messageText);
+					}
 					break;
 
 				case 'позвонитемне_undefine':
