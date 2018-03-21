@@ -6,16 +6,16 @@
 
 	$texts = Texts::getTexts();
 
-	//print('..........');
+	////print('..........');
 
-	//print_r($areas);
+	////print_r($areas);
 
-	//print('..........');
+	////print('..........');
 
 	$telegramApi = new TelegramBot();
 
 	$areas = [
-		"Ижевск" => ["Ленинский район", "Октябрьский район", "Индустриальный район", "Устиновский район", "Первомайский район"],
+		"Ижевск" => ["Ленинский", "Октябрьский", "Индустриальный", "Устиновский", "Первомайский"],
 		"Пермь" => ["Дзержинский", "Индустриальный", "Кировский", "Ленинский", "Мотовилихинский", "Орджоникидзевский", "Свердловский"], 
 		"Смоленск" => ["Заднепровский район", "Ленинский", "Промышленный"]
 	];
@@ -27,17 +27,18 @@
 		"позвонитемне_define" => ["Изменить номер", "Назад"],
 		"city_define" => ["Все дома", "Дома по районам", "Дома по планировкам", "Назад"],
 		"showAllHouses" => ["Выбрать этот дом"],
-		"showApartaments" => ["Выбрать эту квартиру"],
-		"showApartament" => ["Оставить заявку на звонок", "Назад"],
+		"showApartaments" => ["Оставить заявку на звонок", "Запросить стоимость"],
 		"layout_undefine" => ["Студия", "1 Комнатная", "2 Комнатная", "3 Комнатная", "4 Комнатная", "5 Комнатная"]
 	];
 
-	//Нахождение низлежайшего блока вызывает сомнения, части кода связаны с построением статистики квартир
-	/* $cityPictures = [
+	$cityPictures = [
 		"Ижевск" => "AgADAgAD06gxG1Ya4UhC-qzdZNH3tVcEMw4ABNhVtgABmRzEp7a9BAABAg",
 		"Пермь" => "AgADAgAD1agxG1Ya4Uibv1Bc7YZPNl_tAw4ABCpTD4TVVJs_VvcDAAEC",
 		"Смоленск" => "AgADAgAD1qgxG1Ya4UhTfbS1bBw1Ns0anA4ABGE6r2v-fxvd-RcCAAEC"
 	];
+
+	//Нахождение низлежайшего блока вызывает сомнения, части кода связаны с построением статистики квартир
+	/*
 
 	$layouts = [
 		0 => "Студия",
@@ -58,7 +59,7 @@
 		}
 	}
 
-	function makeAnswerArray($type, $answerArray, $callbacks = []){
+	function makeAnswerArray($type, $answerArray, $callbacks = [], $oneLine = false){
 		$updateAnswerArray = [];
 		if($type == "reply"){
 			foreach ($answerArray as $ind => $value) {
@@ -67,12 +68,21 @@
 			$updateAnswerArray = [$updateAnswerArray];
 		}
 		if($type == "inline"){
-			foreach ($answerArray as $ind => $value) {
-				if($callbacks[$ind]) $callback_data = $callbacks[$ind];
-				else $callback_data = $value;
-				$updateAnswerArray[] = [["text" => $value, "callback_data" => $callback_data]];
+			if($oneLine){
+				foreach ($answerArray as $ind => $value) {
+					if($callbacks[$ind]) $callback_data = $callbacks[$ind];
+					else $callback_data = $value;
+					$updateAnswerArray[] = ["text" => $value, "callback_data" => $callback_data];
+				}
+				$updateAnswerArray = [$updateAnswerArray];
+			} else {
+				foreach ($answerArray as $ind => $value) {
+					if($callbacks[$ind]) $callback_data = $callbacks[$ind];
+					else $callback_data = $value;
+					$updateAnswerArray[] = [["text" => $value, "callback_data" => $callback_data]];
+				}
+				$updateAnswerArray = $updateAnswerArray;
 			}
-			$updateAnswerArray = $updateAnswerArray;
 		}
 		return $updateAnswerArray;
 	}
@@ -87,28 +97,49 @@
 		foreach ($replaceStruct as $key => $value) {
 			$oldText = str_replace('[' . $key . ']', $value, $oldText);
 		}
-		print("^^^^^^^^^^^ " . $oldText);
+		//print("^^^^^^^^^^^ " . $oldText);
 		return $oldText;
 	} */
 
 	function mysqlQuest($quest, $type = "Single"){
 		try{
-			print("MYSQL : " . $quest . "\n");
+			//print("MYSQL : " . $quest . "\n");
 			$connection = mysqli_connect('127.0.0.1', "root", '', 'house');
-			//print("Quest  = " . $quest . "\n");
+			////print("Quest  = " . $quest . "\n");
 			$answer = mysqli_query($connection, $quest);
 			if($answer){
-				if($type == "Single") $answer = mysqli_fetch_assoc($answer);
+				if($type == "Single" && gettype() != "boolean") $answer = mysqli_fetch_assoc($answer);
 				return $answer;
 			} else {
 				return false;
 			}
 		} catch(Exception $e) {
-			print('Выброшено исключение: '.  $e->getMessage(). "\n");
+			//print('Выброшено исключение: '.  $e->getMessage(). "\n");
 		}
 	}
 
 	class Action{
+
+		public static function editObjectArray($index, $value){
+			global $user;
+			$currentArray = json_decode($user['objectArray']);
+			$currentArray[$index] = $value;
+			User::updateObjectArray($currentArray);
+		}
+
+		public static function editMes($editMessageId, $message, $type, $buttons = NULL, $callbacks = NULL){
+			global $chatId, $telegramApi;
+			$sendMessageObject = $telegramApi->editMessage($editMessageId, $chatId, $message, $type, makeAnswerArray($type, $buttons, $callbacks));
+			//print_r($sendMessageObject);
+			return $sendMessageObject->result->message_id;
+		}
+
+		public static function editCap($editMessageId, $message, $type, $buttons = NULL, $callbacks = NULL){
+			global $chatId, $telegramApi;
+			$sendMessageObject = $telegramApi->editCaption($editMessageId, $chatId, $message, $type, makeAnswerArray($type, $buttons, $callbacks));
+			//print_r($sendMessageObject);
+			return $sendMessageObject->result->message_id;
+		}
 
 		public static function del($messageId){
 			global $chatId, $telegramApi;
@@ -121,15 +152,16 @@
 			User::updateLastMessageId(0); //Выключаем последнее сообщение
 		}
 
-		public static function pic($picId, $message = NULL, $type = NULL, $buttons = NULL, $callbacks = NULL){
+		public static function pic($picId, $message = NULL, $type = NULL, $buttons = NULL, $callbacks = NULL, $oneLine = false){
 			global $chatId, $telegramApi;
 			User::updateLastMessageId(0);
-			print("! " . $buttons . " " . $callbacks . "\n");
+			//print("! " . $buttons . " " . $callbacks . "\n");
 			if($buttons){
-				$sendMessageObject = $telegramApi->sendPhoto($chatId, $picId, $message, $type, makeAnswerArray($type, $buttons, $callbacks));
+				$sendMessageObject = $telegramApi->sendPhoto($chatId, $picId, $message, $type, makeAnswerArray($type, $buttons, $callbacks, $oneLine));
 			} else {
 				$sendMessageObject = $telegramApi->sendPhoto($chatId, $picId, $message);
 			}
+			//print_r($sendMessageObject);
 			return $sendMessageObject->result->message_id;
 		}
 		public static function text($message, $type, $buttons = NULL, $callbacks = NULL){
@@ -138,21 +170,21 @@
 				$editMessageId = $user["lastMessageId"];
 				if($buttons){
 					$sendMessageObject = $telegramApi->editMessage($editMessageId, $chatId, $message, $type, makeAnswerArray($type, $buttons, $callbacks));
-					print_r($sendMessageObject);
+					//print_r($sendMessageObject);
 					User::updateLastMessageId($sendMessageObject->result->message_id);
 				} else {
 					$sendMessageObject = $telegramApi->editMessage($editMessageId, $chatId, $message);
-					print_r($sendMessageObject);
+					//print_r($sendMessageObject);
 					User::updateLastMessageId($sendMessageObject->result->message_id);
 				}	
 			} else {
 				if($buttons){
 					$sendMessageObject = $telegramApi->sendMessage($chatId, $message, $type, makeAnswerArray($type, $buttons, $callbacks));
-					print_r($sendMessageObject);
+					//print_r($sendMessageObject);
 					User::updateLastMessageId($sendMessageObject->result->message_id);
 				} else {
 					$sendMessageObject = $telegramApi->sendMessage($chatId, $message);
-					print_r($sendMessageObject);
+					//print_r($sendMessageObject);
 					User::updateLastMessageId($sendMessageObject->result->message_id);
 				}
 			}
@@ -174,13 +206,17 @@
 		}
 
 		public static function houses($city, $area = "All", $layout = -1){
-			global $chatId, $telegramApi, $buttons;
+			global $chatId, $telegramApi, $buttons, $user, $cityPictures, $texts;
 			if(!$area){
 				// Пользователь может искать в любой area -> Вероятный переход с квартир
 				$area = "All"; 
 			}
-			$trueInWhileSituation = false;
+
 			$sendMessageIds = [];
+			$sendId = Action::pic($cityPictures[$user['city']], $texts['showAllHouses'] . " " . $user['city'], "inline", ['Назад']); //Непосредственно добавляем фото города с кнопкой назад
+			$sendMessageIds[] = $sendId;
+
+			$trueInWhileSituation = false;
 			if($layout >= 0){
 				$houses = mysqlQuest("SELECT * FROM `houses` WHERE `city` = '$city'", "Group");
 				while($house = mysqli_fetch_assoc($houses)){
@@ -210,17 +246,17 @@
 			}
 
 			if(!$trueInWhileSituation){
-				print("Домов с такими параметрами не найдено, Ошибка");
+				//print("Домов с такими параметрами не найдено, Ошибка");
 			}
 			User::updateObjectArray($sendMessageIds);
 		}
 
 		public static function apartaments($house){
-			global $chatId, $telegramApi, $buttons, $user;
+			global $chatId, $telegramApi, $buttons, $user, $texts;
 			$sendMessageIds = [];
 
 			$houseObject = mysqlQuest("SELECT * FROM `houses` WHERE `Id` = $house");
-			$sendId = Action::pic($houseObject['photo'], $houseObject['adress'], "inline", ['Назад']); //Непосредственно добавляем фото дома с кнопкой назад
+			$sendId = Action::pic($houseObject['photo'], $texts['showAllApartaments'] . " " . $houseObject['adress'], "inline", ['Назад']); //Непосредственно добавляем фото дома с кнопкой назад
 			$sendMessageIds[] = $sendId;
 
 			if($user["layout"] >= 0){
@@ -229,11 +265,13 @@
 			} else {
 				$apartamentsArr = mysqlQuest("SELECT * FROM `apartaments` WHERE `house` = $house", "Group");
 			}
+			$apartamentNumber = 0; //Число обозначающее номер квартиры
 			while($apartament = mysqli_fetch_assoc($apartamentsArr)){
+				$apartamentNumber += 1; //Фото дома - первое сообщение
 				$apartPic = $apartament["photo"];
 				if($apartament["layout"] == 0) $text = "Студия";
 				else $text = $apartament["layout"] . "-тная квартира";
-				$sendId = Action::pic($apartPic, $text, "inline", $buttons["showApartaments"], [$apartament["ind"]]);
+				$sendId = Action::pic($apartPic, $text, "inline", $buttons["showApartaments"], ["o" . $apartamentNumber, "i" . json_encode([$apartamentNumber, $apartament["ind"]])], true); //order + information
 				$sendMessageIds[] = $sendId;
 			}
 			User::updateObjectArray($sendMessageIds);	
@@ -276,7 +314,7 @@
 				$answer[] = $value;
 			}
 			$answer[] = "Назад";
-			//print_r($answer);
+			////print_r($answer);
 			return $answer;
 		}
 		*/
@@ -357,14 +395,14 @@
 			// continue;
 			//
 
-			//print_r($update);
+			////print_r($update);
 
 			if($update->callback_query){
 				$queryId = $update->callback_query->id;
 				$chatId = $update->callback_query->message->chat->id;
 				$userId = $update->callback_query->from->id;
 				$messageText = $update->callback_query->data;
-				print("Callback = " . $messageText . "\n"); 
+				//print("Callback = " . $messageText . "\n"); 
 				Action::reactQuery();
 			} else {
 				$chatId = $update->message->chat->id;
@@ -485,11 +523,32 @@
 						User::updateStage("showAllHouses");
 						Action::houses($user["city"], $user["area"], $user["layout"]);
 					} else {
-						
+						if(substr($messageText, 0, 1) == "o"){ //order
 
+						} else { //information
+							$apartamentArray = json_decode(substr($messageText, 1));
+							$apartamentNumber = $apartamentArray[0];
+							$apartamentIndex = $apartamentArray[1];
+							$objectIndexArray = json_decode($user['objectArray']);
+							$apartamentObject = mysqlQuest("SELECT * FROM `apartaments` WHERE `ind` = $apartamentIndex");
+							$apartamentPrice = $apartamentObject['price'];
+							$messageId = Action::editCap($objectIndexArray[$apartamentNumber], "Цена " . $apartamentPrice . " рублей", "inline", [$buttons['showApartaments'][0]], ["o" . $apartamentIndex]);
+							Action::editObjectArray($apartamentNumber, $messageId);
+						}
 					}
 					break;
 
+				case 'позвонитемне_undefine':
+					User::updatePhoneNumber($messageText);
+					User::updateStage("вашеимя_undefine");
+					Action::text($texts['вашеимя_undefine']);
+					break;
+
+				case 'вашеимя_undefine':
+					User::updateName($messageText);
+					User::updateStage("позвонитемне_define");
+					$namePhone = $user['phoneNumber'] . ' (' . $user['name'] . ')';
+					
 				case "area_undefine":
 					if($messageText == "Назад"){
 						User::updateStage("city_define");
@@ -500,16 +559,6 @@
 						Action::houses($user["city"], $messageText);
 					}
 					break;
-
-				case 'позвонитемне_undefine':
-					User::updatePhoneNumber($messageText);
-					User::updateStage("вашеимя_undefine");
-					Action::text($texts['вашеимя_undefine']);
-					break;
-				case 'вашеимя_undefine':
-					User::updateName($messageText);
-					User::updateStage("позвонитемне_define");
-					$namePhone = $user['phoneNumber'] . ' (' . $user['name'] . ')';
 					Action::text($texts['позвонитемне_define'], "reply", array_merge((array)$namePhone, $buttons['позвонитемне_define']));
 					break;
 

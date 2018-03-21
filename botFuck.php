@@ -17,7 +17,7 @@
 					$url .= "?" . http_build_query($params);
 				}
 
-				print("Quest = " . $url . "\n");
+				//print("Quest = " . $url . "\n");
 
 				$client = new Client([
 					'base_uri' => $url
@@ -27,7 +27,7 @@
 
 				return json_decode($result->getBody());
 			} catch(Exception $e) {
-				//print('Выброшено исключение: '.  $e->getMessage(). "\n");
+				////print('Выброшено исключение: '.  $e->getMessage(). "\n");
 			}
 
 		}
@@ -71,15 +71,43 @@
 					);
 				};
 				if($keyboardType == "inline"){
-					//print_r($answers);
+					////print_r($answers);
 					$keyboard = array(
 						"inline_keyboard" => $answers
 					);	
 				}
 				$postfields['reply_markup'] = json_encode($keyboard);
-							//print_r($postfields);
+							////print_r($postfields);
 			};
 			$output = $this->query("editMessageText", $postfields);
+			return $output;
+		}
+
+		public function editCaption($messageId, $chat_id, $text, $keyboardType = NULL, $answers = NULL){
+			$postfields = [
+				'chat_id' => "$chat_id",
+				'caption' => "$text",
+				'message_id' => "$messageId"
+			];
+
+			if($keyboardType){
+				if($keyboardType == "reply"){
+					$keyboard = array(
+						"keyboard" => $answers,
+						"one_time_keyboard" => true, // можно заменить на FALSE,клавиатура скроется после нажатия кнопки автоматически при True
+						"resize_keyboard" => true // можно заменить на FALSE, клавиатура будет использовать компактный размер автоматически при True
+					);
+				};
+				if($keyboardType == "inline"){
+					////print_r($answers);
+					$keyboard = array(
+						"inline_keyboard" => $answers
+					);	
+				}
+				$postfields['reply_markup'] = json_encode($keyboard);
+							////print_r($postfields);
+			};
+			$output = $this->query("editMessageCaption", $postfields);
 			return $output;
 		}
 
@@ -97,13 +125,13 @@
 					);
 				};
 				if($keyboardType == "inline"){
-					//print_r($answers);
+					////print_r($answers);
 					$keyboard = array(
 						"inline_keyboard" => $answers
 					);	
 				}
 				$postfields['reply_markup'] = json_encode($keyboard);
-							//print_r($postfields);
+							////print_r($postfields);
 			};
 			$output = $this->query("sendMessage", $postfields);
 			return $output;
