@@ -1,4 +1,6 @@
 <?php
+		
+	mb_internal_encoding("UTF-8");
 
 	require __DIR__ . '/vendor/autoload.php';
 
@@ -21,14 +23,15 @@
 	];
 
 	$buttons = [
-		"старт" => ["Обратная связь", "Обьекты", "Карта"],
+		"старт" => ["Обратная связь", "Обьекты"],
 		"обратнаясвязь" => ["Позвоните мне", "Помощь", "Назад"],
 		"city_undefine" => ["Ижевск", "Пермь", "Смоленск"],
 		"позвонитемне_define" => ["Изменить номер", "Назад"],
 		"city_define" => ["Все дома", "Дома по районам", "Дома по планировкам", "Назад"],
 		"showAllHouses" => ["Выбрать этот дом"],
 		"showApartaments" => ["Оставить заявку на звонок", "Запросить стоимость"],
-		"layout_undefine" => ["Студия", "1 Комнатная", "2 Комнатная", "3 Комнатная", "4 Комнатная", "5 Комнатная"]
+		"layout_undefine" => ["Студия", "1 Комнатная", "2 Комнатная", "3 Комнатная", "4 Комнатная", "5 Комнатная"],
+		"старт админ" => ["Изменить текста", "Добавить дом", "Добавить квартиру"]
 	];
 
 	$cityPictures = [
@@ -55,6 +58,30 @@
 			while($newText = mysqli_fetch_assoc($textsArray)){
 				$answer[$newText["name"]] = $newText["text"];
 			}
+			return $answer;
+		}
+
+		public static function updateTexts($ind, $newText){
+			mysqlQuest("UPDATE `texts` SET `text` = '$newText' WHERE `ind` = $ind");
+		}
+
+		public static function refreshTexts(){
+			global $texts;
+			$texts = Texts::getTexts();
+		}
+
+		public static function makeButtonsArray(){
+			global $texts;
+			$answer = [];
+			$textsArray = mysqlQuest("SELECT * FROM `texts`", "Group");
+			while($newText = mysqli_fetch_assoc($textsArray)){
+				print($value . " ");
+				if(mb_strlen($value) > 20) $answer["buttons"][] = mb_substr($newText['text'], 0, 20);
+				else $answer["buttons"][] = $newText['text'];
+				$answer["callbacks"][] = $newText['ind'];
+			}
+			$answer["buttons"][] = 'Назад';
+			//print_r($answer);
 			return $answer;
 		}
 	}
@@ -84,6 +111,7 @@
 				$updateAnswerArray = $updateAnswerArray;
 			}
 		}
+		//print_r($updateAnswerArray);
 		return $updateAnswerArray;
 	}
 
@@ -103,7 +131,7 @@
 
 	function mysqlQuest($quest, $type = "Single"){
 		try{
-			//print("MYSQL : " . $quest . "\n");
+			print("MYSQL : " . $quest . "\n");
 			$connection = mysqli_connect('127.0.0.1', "root", '', 'house');
 			////print("Quest  = " . $quest . "\n");
 			$answer = mysqli_query($connection, $quest);
@@ -188,6 +216,9 @@
 					User::updateLastMessageId($sendMessageObject->result->message_id);
 				}
 			}
+			if($type == "reply"){
+				User::updateLastMessageId(0);
+			}
 			return $sendMessageObject->result->message_id;
 		}
 
@@ -226,7 +257,7 @@
 						$trueInWhileSituation = true;
 						$housePic = $house["photo"];
 						$text = $house["adress"];
-						$sendId = Action::pic($housePic, $text, "inline", $buttons["showAllHouses"], ["h" . $house["Id"]]);
+						$sendId = Action::pic($housePic, $text, "inline", $buttons["showAllHouses"], [$house["Id"]]);
 						$sendMessageIds[] = $sendId;
 					}
 				}
@@ -318,6 +349,14 @@
 			return $answer;
 		}
 		*/
+	}
+
+	class Admin{
+		public static function updateTextToEdit($newText){
+			global $userId, $user;
+			mysqlQuest("UPDATE `users` SET `admin_textToEdit`= '$newText' WHERE `id` = $userId");
+			$user['admin_textToEdit'] = $arrayInJSON;
+		}
 	}
 
 	class User{
@@ -418,20 +457,67 @@
 				User::newUser();
 				continue;
 			}
+
+			//Проверка на общие кнопки снизу
+
+			if($messageText == "Обратная связь"){
+				Action::text($texts['обратнаясвязь'], "reply", $buttons['обратнаясвязь']);	
+				User::updateStage('обратнаясвязь');
+				continue;
+			}
+			if($messageText == "Обьекты"){
+				Action::text($texts['city_undefine'], "inline", $buttons['city_undefine']);
+				User::updateStage('city_undefine');
+				continue;
+			}
+
+			//Проверка этапов 
+			
 			switch (User::$currentStage){
 				case 'старт':
-					if($messageText == "Обратная связь"){
-						Action::text($texts['обратнаясвязь'], "reply", $buttons['обратнаясвязь']);	
-						User::updateStage('обратнаясвязь');
+					if($messageText == "Админ"){
+						Action::text($texts['старт'], "reply", $buttons['старт админ']);
+						User::updateStage('старт админ');
 					}
-					if($messageText == "Обьекты"){
-						Action::text($texts['city_undefine'], "inline", $buttons['city_undefine']);
-						User::updateStage('city_undefine');
+					break;
+
+				case 'старт админ':
+					switch ($messageText) {
+						case 'Юзер':
+							Action::text($texts['старт'] , "reply", $buttons['старт']);
+							User::updateStage('старт');
+							break;
+						case 'Изменить текста':
+							Action::text($texts['all_texts'], "inline", Texts::makeButtonsArray()["buttons"], Texts::makeButtonsArray()["callbacks"]);
+							User::updateStage('all_texts');
+							break;
+						case 'Добавить дом':
+
+							break;
+						case 'Добавить квартиру':
+
+							break;
 					}
-					if($messageText == "Карта"){
-						Action::point(56.858289, 53.182234);
-						Action::text($texts['старт'], $buttons['старт']);
+					break;
+
+				case 'all_texts':
+					if($messageText == "Назад"){
+						User::updateLastMessageId(0);
+						Action::text($texts['старт'], "reply", $buttons['старт админ']);
+						User::updateStage('старт админ');
+
+					} else {
+						Admin::updateTextToEdit($messageText);
+						Action::text($texts['all_texts_edit']);
+						User::updateStage('all_texts_edit');
 					}
+					break;
+
+				case 'all_texts_edit':
+					Texts::updateTexts($user['admin_textToEdit'], $messageText);
+					Texts::refreshTexts();
+					Action::text($texts['all_texts'], "inline", Texts::makeButtonsArray()["buttons"], Texts::makeButtonsArray()["callbacks"]);
+					User::updateStage('all_texts');
 					break;
 
 				case 'обратнаясвязь':

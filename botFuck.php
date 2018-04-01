@@ -17,7 +17,7 @@
 					$url .= "?" . http_build_query($params);
 				}
 
-				//print("Quest = " . $url . "\n");
+				print("Quest! = " . $url . "\n");
 
 				$client = new Client([
 					'base_uri' => $url
@@ -66,7 +66,7 @@
 				if($keyboardType == "reply"){
 					$keyboard = array(
 						"keyboard" => $answers,
-						"one_time_keyboard" => true, // можно заменить на FALSE,клавиатура скроется после нажатия кнопки автоматически при True
+						"one_time_keyboard" => false, // можно заменить на FALSE,клавиатура скроется после нажатия кнопки автоматически при True
 						"resize_keyboard" => true // можно заменить на FALSE, клавиатура будет использовать компактный размер автоматически при True
 					);
 				};
@@ -94,7 +94,7 @@
 				if($keyboardType == "reply"){
 					$keyboard = array(
 						"keyboard" => $answers,
-						"one_time_keyboard" => true, // можно заменить на FALSE,клавиатура скроется после нажатия кнопки автоматически при True
+						"one_time_keyboard" => false, // можно заменить на FALSE,клавиатура скроется после нажатия кнопки автоматически при True
 						"resize_keyboard" => true // можно заменить на FALSE, клавиатура будет использовать компактный размер автоматически при True
 					);
 				};
@@ -120,18 +120,17 @@
 				if($keyboardType == "reply"){
 					$keyboard = array(
 						"keyboard" => $answers,
-						"one_time_keyboard" => true, // можно заменить на FALSE,клавиатура скроется после нажатия кнопки автоматически при True
+						"one_time_keyboard" => false, // можно заменить на FALSE,клавиатура скроется после нажатия кнопки автоматически при True
 						"resize_keyboard" => true // можно заменить на FALSE, клавиатура будет использовать компактный размер автоматически при True
 					);
 				};
 				if($keyboardType == "inline"){
-					////print_r($answers);
 					$keyboard = array(
 						"inline_keyboard" => $answers
-					);	
-				}
+					);
+				};	
 				$postfields['reply_markup'] = json_encode($keyboard);
-							////print_r($postfields);
+				//print_r($postfields);
 			};
 			$output = $this->query("sendMessage", $postfields);
 			return $output;
@@ -146,7 +145,7 @@
 				if($keyboardType == "reply"){
 					$keyboard = array(
 						"keyboard" => $answers,
-						"one_time_keyboard" => true, // можно заменить на FALSE,клавиатура скроется после нажатия кнопки автоматически при True
+						"one_time_keyboard" => false, // можно заменить на FALSE,клавиатура скроется после нажатия кнопки автоматически при True
 						"resize_keyboard" => true // можно заменить на FALSE, клавиатура будет использовать компактный размер автоматически при True
 					);
 				};
