@@ -133,6 +133,8 @@
 		try{
 			print("MYSQL : " . $quest . "\n");
 			$connection = mysqli_connect('127.0.0.1', "root", '', 'house');
+			$connection->set_charset('utf8mb4');
+
 			////print("Quest  = " . $quest . "\n");
 			$answer = mysqli_query($connection, $quest);
 			if($answer){
@@ -194,6 +196,15 @@
 		}
 		public static function text($message, $type, $buttons = NULL, $callbacks = NULL){
 			global $chatId, $telegramApi, $user;
+			if($lastMessageType == "inline" && $type == "reply"){
+				User::updateLastMessageId(0);
+			}
+
+			if($lastMessageType == "reply"){
+				User::updateLastMessageId(0);
+			}
+
+			$lastMessageType = $type;
 			if($user["lastMessageId"] != 0){
 				$editMessageId = $user["lastMessageId"];
 				if($buttons){
@@ -475,7 +486,7 @@
 			
 			switch (User::$currentStage){
 				case 'старт':
-					if($messageText == "Админ"){
+					if($messageText == "Сосочка"){
 						Action::text($texts['старт'], "reply", $buttons['старт админ']);
 						User::updateStage('старт админ');
 					}
@@ -590,6 +601,8 @@
 						Action::houses($user["city"], "All", $messageText);
 					}
 					break;
+
+
 
 				case 'showAllHouses':
 					if($messageText == 'Назад'){
